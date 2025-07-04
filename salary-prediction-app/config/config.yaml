@@ -1,0 +1,62 @@
+# Application Configuration
+app:
+  name: "Salary Prediction App"
+  version: "1.0.0"
+  debug: false
+  host: "localhost"
+  port: 8501
+
+# Model Configuration
+model:
+  type: "random_forest"
+  model_path: "models/salary_model.pkl"
+  scaler_path: "models/scaler.pkl"
+  encoder_path: "models/encoder.pkl"
+  retrain_threshold: 0.85
+
+# Data Configuration
+data:
+  input_features:
+    - "experience_years"
+    - "education_level"
+    - "job_title"
+    - "location"
+    - "company_size"
+    - "industry"
+  target_column: "salary"
+  test_size: 0.2
+  random_state: 42
+
+# UI Configuration
+ui:
+  theme: "light"
+  sidebar_width: 300
+  show_prediction_confidence: true
+  show_feature_importance: true
+  max_file_upload_size: 10 # MB
+
+# Logging Configuration
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/app.log"
+  max_file_size: 10485760 # 10MB
+  backup_count: 5
+
+# Database Configuration (if applicable)
+database:
+  enabled: false
+  url: "sqlite:///data/predictions.db"
+  table_name: "salary_predictions"
+
+# API Configuration (if applicable)
+api:
+  enabled: false
+  rate_limit: 100 # requests per minute
+  api_key_required: false
+
+# Performance Configuration
+performance:
+  cache_ttl: 3600 # seconds
+  max_concurrent_users: 50
+  enable_profiling: false
