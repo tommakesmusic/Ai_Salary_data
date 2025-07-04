@@ -118,6 +118,93 @@ def format_salary(salary):
     else:
         return f"${salary:.0f}"
 
-def calculate_percentile(values, target_value):
-    """Calculate what percentile a target value falls into"""
-    return (np.array(values) <= target_value).mean() * 100
+def calculate_salary_percentile(df, predicted_salary):
+    """Calculate what percentile the predicted salary falls into"""
+    try:
+        # Check for different salary column names
+        salary_column = None
+        if 'salary_usd' in df.columns:
+            salary_column = 'salary_usd'
+            return (df[salary_column] <= predicted_salary).mean() * 100
+        elif 'log_salary_usd' in df.columns:
+            # Convert log salary to actual salary for comparison
+            actual_salaries = np.expm1(df['log_salary_usd'])
+            return (actual_salaries <= predicted_salary).mean() * 100
+        elif 'salary_usd_calculated' in df.columns:
+            return (df['salary_usd_calculated'] <= predicted_salary).mean() * 100
+        else:
+            return 50  # Default if no salary data
+    except Exception as e:
+        print(f"Error in calculate_salary_percentile: {e}")
+        return 50
+
+def compare_to_market(df, predicted_salary, experience_level):
+    """Compare predicted salary to market average for experience level"""
+    try:
+        # Check for experience level column variations
+        exp_col = None
+        if 'experience_level' in df.columns:
+            exp_col = 'experience_level'
+        elif 'Experience_Level' in df.columns:
+            exp_col = 'Experience_Level'
+        
+        if exp_col is None:
+            return "N/A"
+        
+        # Check for salary column variations
+        if 'salary_usd' in df.columns:
+            market_data = df[df[exp_col] == experience_level]['salary_usd']
+            if len(market_data) > 0:
+                market_avg = market_data.mean()
+                diff = predicted_salary - market_avg
+                return f"${diff:+,.0f}"
+        elif 'log_salary_usd' in df.columns:
+            market_data = df[df[exp_col] == experience_level]['log_salary_usd']
+            if len(market_data) > 0:
+                market_avg = np.expm1(market_data.mean())
+                diff = predicted_salary - market_avg
+                return f"${diff:+,.0f}"
+        elif 'salary_usd_calculated' in df.columns:
+            market_data = df[df[exp_col] == experience_level]['salary_usd_calculated']
+            if len(market_data) > 0:
+                market_avg = market_data.mean()
+                diff = predicted_salary - market_avg
+                return f"${diff:+,.0f}"
+        
+        return "N/A"
+    except Exception as e:
+        print(f"Error in compare_to_market: {e}")
+        return "N/A"
+
+def compare_to_hub(df, predicted_salary, selected_hub):
+    """Compare predicted salary to hub average"""
+    try:
+        hub_col = f'Hub_{selected_hub}'
+        
+        if hub_col not in df.columns:
+            return "N/A"
+        
+        # Check for salary column variations
+        if 'salary_usd' in df.columns:
+            hub_data = df[df[hub_col] == 1]['salary_usd']
+            if len(hub_data) > 0:
+                hub_avg = hub_data.mean()
+                diff = predicted_salary - hub_avg
+                return f"${diff:+,.0f}"
+        elif 'log_salary_usd' in df.columns:
+            hub_data = df[df[hub_col] == 1]['log_salary_usd']
+            if len(hub_data) > 0:
+                hub_avg = np.expm1(hub_data.mean())
+                diff = predicted_salary - hub_avg
+                return f"${diff:+,.0f}"
+        elif 'salary_usd_calculated' in df.columns:
+            hub_data = df[df[hub_col] == 1]['salary_usd_calculated']
+            if len(hub_data) > 0:
+                hub_avg = hub_data.mean()
+                diff = predicted_salary - hub_avg
+                return f"${diff:+,.0f}"
+        
+        return "N/A"
+    except Exception as e:
+        print(f"Error in compare_to_hub: {e}")
+        return "N/A"

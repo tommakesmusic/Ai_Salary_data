@@ -183,15 +183,26 @@ def show_dashboard_overview(df):
     """Display the main dashboard with key metrics and insights"""
     st.markdown('<div class="section-header">📊 Dashboard Overview</div>', unsafe_allow_html=True)
     
+    # Determine which salary column to use
+    salary_column = None
+    if 'salary_usd' in df.columns:
+        salary_column = 'salary_usd'
+    elif 'log_salary_usd' in df.columns:
+        # Convert log salary back to actual salary for display
+        df = df.copy()  # Make a copy to avoid modifying the original
+        df['salary_usd_calculated'] = np.expm1(df['log_salary_usd'])
+        salary_column = 'salary_usd_calculated'
+    
     # Key metrics row
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
-        if 'salary_usd' in df.columns:
-            avg_salary = df['salary_usd'].mean()
+        if salary_column and salary_column in df.columns:
+            avg_salary = df[salary_column].mean()
             st.metric("💰 Average Salary", f"${avg_salary:,.0f}")
         else:
             st.metric("💰 Average Salary", "N/A")
+            st.caption("No salary data found")
     
     with col2:
         total_jobs = len(df)
@@ -213,15 +224,104 @@ def show_dashboard_overview(df):
     col1, col2 = st.columns(2)
     
     with col1:
-        st.subheader("💰 Salary Distribution by Experience Level")
-        if 'experience_level' in df.columns and 'salary_usd' in df.columns:
-            fig = px.box(df, x='experience_level', y='salary_usd', 
-                        title="Salary Distribution by Experience Level",
-                        color='experience_level')
-            fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True)
+        st.subheader("💰 Salary Distribution Analysis")
+        
+        # Look for categorical columns that could be used for grouping
+        categorical_cols = [col for col in df.columns if df[col].dtype == 'object' and col not in ['log_salary_usd', 'salary_usd']]
+        
+        # Try to find experience-related columns
+        exp_candidates = [col for col in df.columns if any(keyword in col.lower() for keyword in ['exp', 'level', 'seniority', 'grade', 'tier'])]
+        
+        # Try job title as backup
+        title_candidates = [col for col in df.columns if any(keyword in col.lower() for keyword in ['title', 'role', 'position'])]
+        
+        # Try company size as another backup
+        size_candidates = [col for col in df.columns if any(keyword in col.lower() for keyword in ['size', 'company'])]
+        
+        # Choose the best grouping column available
+        grouping_col = None
+        chart_title = "Salary Distribution"
+        
+        if exp_candidates:
+            grouping_col = exp_candidates[0]
+            chart_title = "Salary Distribution by Experience/Level"
+        elif title_candidates:
+            grouping_col = title_candidates[0]
+            chart_title = "Salary Distribution by Job Title"
+        elif size_candidates:
+            grouping_col = size_candidates[0]
+            chart_title = "Salary Distribution by Company Size"
+        elif categorical_cols:
+            grouping_col = categorical_cols[0]
+            chart_title = f"Salary Distribution by {grouping_col.replace('_', ' ').title()}"
+        
+        if grouping_col and salary_column and grouping_col in df.columns and salary_column in df.columns:
+            try:
+                # Check if we have reasonable number of categories
+                unique_values = df[grouping_col].nunique()
+                
+                if unique_values <= 20:  # Only create chart if reasonable number of categories
+                    # For numeric experience columns, convert to categorical or create bins
+                    if df[grouping_col].dtype in ['int64', 'float64']:
+                        # Create experience level bins for numeric data
+                        if 'exp' in grouping_col.lower() or 'year' in grouping_col.lower():
+                            # Create experience bins
+                            df_plot = df.copy()
+                            df_plot['exp_category'] = pd.cut(df_plot[grouping_col], 
+                                                           bins=5, 
+                                                           labels=['Entry (0-2)', 'Junior (2-4)', 'Mid (4-6)', 'Senior (6-8)', 'Expert (8+)'])
+                            grouping_col_plot = 'exp_category'
+                        else:
+                            df_plot = df.copy()
+                            grouping_col_plot = grouping_col
+                    else:
+                        df_plot = df.copy()
+                        grouping_col_plot = grouping_col
+                    
+                    # Create the box plot
+                    fig = px.box(df_plot, x=grouping_col_plot, y=salary_column, 
+                                title=chart_title,
+                                color=grouping_col_plot,
+                                labels={
+                                    salary_column: "Salary (USD)",
+                                    grouping_col_plot: grouping_col_plot.replace('_', ' ').title()
+                                })
+                    fig.update_layout(height=400)
+                    fig.update_xaxes(tickangle=45)
+                    st.plotly_chart(fig, use_container_width=True, key="salary_distribution_box")
+                else:
+                    st.info(f"Too many categories ({unique_values}) in {grouping_col} for box plot visualization")
+                    
+                    # Show alternative: salary histogram
+                    fig = px.histogram(df, x=salary_column, 
+                                     title="Salary Distribution Histogram",
+                                     nbins=30,
+                                     labels={salary_column: "Salary (USD)"})
+                    fig.update_layout(height=400)
+                    st.plotly_chart(fig, use_container_width=True, key="salary_distribution_hist_alt")
+                    
+            except Exception as e:
+                st.error(f"Error creating salary chart: {e}")
+                
+                # Show fallback histogram
+                if salary_column in df.columns:
+                    fig = px.histogram(df, x=salary_column, 
+                                     title="Salary Distribution Histogram",
+                                     nbins=30,
+                                     labels={salary_column: "Salary (USD)"})
+                    fig.update_layout(height=400)
+                    st.plotly_chart(fig, use_container_width=True, key="salary_distribution_fallback")
         else:
-            st.info("Salary or experience level data not available")
+            # Show salary histogram as fallback
+            if salary_column and salary_column in df.columns:
+                fig = px.histogram(df, x=salary_column, 
+                                 title="Overall Salary Distribution",
+                                 nbins=30,
+                                 labels={salary_column: "Salary (USD)"})
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True, key="salary_distribution_default")
+            else:
+                st.info("No suitable data for salary visualization")
     
     with col2:
         st.subheader("🌍 Jobs Distribution by Hub")
@@ -231,9 +331,33 @@ def show_dashboard_overview(df):
                         title="Distribution of Jobs by Geographic Hub",
                         color_discrete_sequence=px.colors.qualitative.Set3)
             fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="hub_distribution_pie")
         else:
-            st.info("Hub distribution data not available")
+            # Create hub chart from column data
+            hub_columns = [col for col in df.columns if col.startswith('Hub_')]
+            if hub_columns:
+                # If we have hub data, create the chart
+                if any(df[hub_col].sum() > 0 for hub_col in hub_columns):
+                    hub_counts = []
+                    for hub_col in hub_columns:
+                        hub_name = hub_col.replace('Hub_', '')
+                        count = df[hub_col].sum()
+                        if count > 0:
+                            hub_counts.append({'hub': hub_name, 'count': count})
+                    
+                    if hub_counts:
+                        hub_df = pd.DataFrame(hub_counts)
+                        fig = px.pie(hub_df, values='count', names='hub', 
+                                    title="Distribution of Jobs by Geographic Hub",
+                                    color_discrete_sequence=px.colors.qualitative.Set3)
+                        fig.update_layout(height=400)
+                        st.plotly_chart(fig, use_container_width=True, key="hub_distribution_manual")
+                    else:
+                        st.info("No hub data available")
+                else:
+                    st.info("No active hubs found")
+            else:
+                st.info("No hub columns found in dataset")
 
 def show_salary_prediction(model, metadata, df):
     """Display the salary prediction interface"""
@@ -244,117 +368,231 @@ def show_salary_prediction(model, metadata, df):
         st.info("Please ensure your model files are in the 'models' directory.")
         return
     
-    st.markdown("### Enter Job Details for Salary Prediction")
+    st.markdown("### 📝 Enter Job Details for Salary Prediction")
+    
+    # Dynamically detect available columns instead of requiring specific ones
+    available_categorical_cols = [col for col in df.columns if df[col].dtype == 'object' and not col.startswith(('Hub_', 'skill_'))]
+    available_numeric_cols = [col for col in df.columns if df[col].dtype in ['int64', 'float64'] and not col.startswith(('Hub_', 'skill_'))]
     
     col1, col2 = st.columns(2)
     
+    # Dictionary to store user inputs
+    user_inputs = {}
+    
     with col1:
-        # Experience level
-        exp_levels = df['experience_level'].unique() if 'experience_level' in df.columns else ['EN', 'MI', 'SE', 'EX']
-        experience_level = st.selectbox("Experience Level", exp_levels)
+        st.markdown("#### 📊 Available Categorical Features")
         
-        # Employment type
-        emp_types = df['employment_type'].unique() if 'employment_type' in df.columns else ['FT', 'PT', 'CT', 'FL']
-        employment_type = st.selectbox("Employment Type", emp_types)
-        
-        # Company size
-        company_sizes = df['company_size'].unique() if 'company_size' in df.columns else ['S', 'M', 'L']
-        company_size = st.selectbox("Company Size", company_sizes)
+        for col in available_categorical_cols:
+            if col not in ['log_salary_usd', 'salary_usd']:  # Exclude target variables
+                unique_values = sorted(df[col].dropna().unique())
+                if len(unique_values) <= 50:  # Only show if reasonable number of options
+                    selected_value = st.selectbox(
+                        f"{col.replace('_', ' ').title()}", 
+                        unique_values,
+                        key=f"cat_{col}"
+                    )
+                    user_inputs[col] = selected_value
     
     with col2:
-        # Hub selection
-        hub_columns = [col for col in df.columns if col.startswith('Hub_')]
+        st.markdown("#### 🔢 Available Numeric Features")
+        
+        for col in available_numeric_cols[:10]:  # Limit to first 10 numeric columns
+            if col not in ['log_salary_usd', 'salary_usd']:  # Exclude target variables
+                min_val = float(df[col].min())
+                max_val = float(df[col].max())
+                default_val = float(df[col].median())
+                
+                selected_value = st.number_input(
+                    f"{col.replace('_', ' ').title()}", 
+                    min_value=min_val,
+                    max_value=max_val,
+                    value=default_val,
+                    key=f"num_{col}"
+                )
+                user_inputs[col] = selected_value
+    
+    # Hub selection
+    st.markdown("---")
+    st.markdown("### 🌍 Geographic Hub Selection")
+    
+    hub_columns = [col for col in df.columns if col.startswith('Hub_')]
+    if hub_columns:
         hubs = [col.replace('Hub_', '') for col in hub_columns]
         selected_hub = st.selectbox("Geographic Hub", hubs)
         
-        # Job title
-        job_titles = df['job_title'].unique() if 'job_title' in df.columns else ['Data Scientist']
-        job_title = st.selectbox("Job Title", sorted(job_titles))
-        
-        # Remote ratio
-        remote_ratio = st.slider("Remote Work Ratio (%)", 0, 100, 50)
+        # Set all hub columns to 0, then set selected one to 1
+        for hub_col in hub_columns:
+            user_inputs[hub_col] = 0
+        user_inputs[f'Hub_{selected_hub}'] = 1
+    else:
+        st.error("❌ No Hub data found in dataset")
+        selected_hub = None
     
     # Skills selection
-    st.markdown("### Select Relevant Skills")
+    st.markdown("---")
+    st.markdown("### 🛠️ Skills Selection")
+    
     skill_columns = [col for col in df.columns if col.startswith('skill_')]
-    skills = [col.replace('skill_', '') for col in skill_columns]
     
-    if skills:
-        col1, col2, col3 = st.columns(3)
-        selected_skills = []
+    if skill_columns:
+        skills = [col.replace('skill_', '') for col in skill_columns]
         
-        for i, skill in enumerate(skills):
-            col = [col1, col2, col3][i % 3]
-            with col:
-                if st.checkbox(skill.replace('_', ' ').title(), key=f"skill_{skill}"):
-                    selected_skills.append(skill)
+        # Initialize all skills to 0
+        for skill_col in skill_columns:
+            user_inputs[skill_col] = 0
         
-        # Prediction button
-        if st.button("🔮 Predict Salary", type="primary"):
-            try:
-                # Create input vector (simplified version)
-                st.info("🔧 Prediction feature coming soon! Model loaded successfully.")
-                st.markdown("**Selected Parameters:**")
-                st.write(f"- Experience Level: {experience_level}")
-                st.write(f"- Hub: {selected_hub}")
-                st.write(f"- Job Title: {job_title}")
-                st.write(f"- Skills: {', '.join(selected_skills) if selected_skills else 'None'}")
-                
-            except Exception as e:
-                st.error(f"❌ Prediction error: {e}")
+        # Show skills in a more organized way
+        if len(skills) <= 50:  # Only show checkboxes if reasonable number
+            num_cols = 4
+            cols = st.columns(num_cols)
+            selected_skills = []
+            
+            for i, skill in enumerate(skills):
+                col = cols[i % num_cols]
+                with col:
+                    skill_display = skill.replace('_', ' ').title()
+                    if st.checkbox(skill_display, key=f"skill_check_{skill}"):
+                        selected_skills.append(skill)
+                        user_inputs[f'skill_{skill}'] = 1
+        else:
+            # Too many skills - use multiselect
+            selected_skills = st.multiselect(
+                "Select Skills (showing first 50):",
+                skills[:50],
+                default=[]
+            )
+            for skill in selected_skills:
+                user_inputs[f'skill_{skill}'] = 1
     else:
-        st.warning("No skills data found in dataset.")
+        st.warning("❌ No skills data found in dataset.")
+    
+    # Prediction button
+    st.markdown("---")
+    if st.button("🔮 Predict Salary", type="primary", use_container_width=True):
+        with st.spinner("Making prediction..."):
+            try:
+                # Create prediction input from user selections
+                prediction_input = create_dynamic_prediction_input(df, user_inputs)
+                
+                if prediction_input is not None:
+                    # Make prediction
+                    prediction = model.predict([prediction_input])[0]
+                    predicted_salary = np.expm1(prediction)  # Convert from log scale
+                    
+                    # Display result with styling
+                    st.markdown("---")
+                    st.markdown("### 🎯 Prediction Results")
+                    
+                    # Main prediction result
+                    col1, col2, col3 = st.columns([1, 2, 1])
+                    with col2:
+                        st.markdown(f"""
+                        <div style="
+                            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+                            padding: 2rem;
+                            border-radius: 10px;
+                            text-align: center;
+                            color: white;
+                            margin: 1rem 0;
+                        ">
+                            <h2 style="margin: 0; font-size: 2.5rem;">
+                                ${predicted_salary:,.0f}
+                            </h2>
+                            <p style="margin: 0.5rem 0 0 0; font-size: 1.2rem;">
+                                Predicted Annual Salary (USD)
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    
+                    # Show additional insights
+                    show_prediction_insights_dynamic(df, predicted_salary, user_inputs)
+                    
+                else:
+                    st.error("❌ Could not create prediction input. Please check your selections.")
+                    
+            except Exception as e:
+                st.error(f"❌ Prediction error: {str(e)}")
 
-def show_hub_analysis(df):
-    """Display hub-based analysis"""
-    st.markdown('<div class="section-header">🌍 Geographic Hub Analysis</div>', unsafe_allow_html=True)
-    
-    hub_columns = [col for col in df.columns if col.startswith('Hub_')]
-    
-    if not hub_columns:
-        st.warning("No hub data available in the dataset.")
-        return
-    
-    # Hub salary comparison
-    st.subheader("💰 Average Salary by Hub")
-    hub_salaries = []
-    
-    for hub_col in hub_columns:
-        hub_name = hub_col.replace('Hub_', '')
-        hub_data = df[df[hub_col] == 1]
-        if len(hub_data) > 0 and 'salary_usd' in df.columns:
-            avg_salary = hub_data['salary_usd'].mean()
-            job_count = len(hub_data)
-            hub_salaries.append({
-                'Hub': hub_name,
-                'Average Salary': avg_salary,
-                'Job Count': job_count
-            })
-    
-    if hub_salaries:
-        hub_df = pd.DataFrame(hub_salaries)
+def create_dynamic_prediction_input(df, user_inputs):
+    """Create input vector for prediction using actual dataset columns"""
+    try:
+        # Get all non-target columns from the dataset
+        exclude_cols = ['log_salary_usd', 'salary_usd']
+        feature_columns = [col for col in df.columns if col not in exclude_cols]
         
-        col1, col2 = st.columns(2)
+        # Initialize input dictionary with defaults
+        input_dict = {}
         
-        with col1:
-            fig = px.bar(hub_df, x='Hub', y='Average Salary', 
-                        title="Average Salary by Geographic Hub",
-                        color='Average Salary', 
-                        color_continuous_scale='viridis')
-            fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True)
+        for col in feature_columns:
+            if col in user_inputs:
+                # Use the user-provided value
+                input_dict[col] = user_inputs[col]
+            else:
+                # Use a default value based on column type
+                if df[col].dtype in ['int64', 'float64']:
+                    input_dict[col] = df[col].median()
+                else:
+                    # For categorical columns, use the most frequent value
+                    mode_values = df[col].mode()
+                    input_dict[col] = mode_values.iloc[0] if len(mode_values) > 0 else 0
         
-        with col2:
-            fig = px.bar(hub_df, x='Hub', y='Job Count', 
-                        title="Number of Jobs by Hub",
-                        color='Job Count', 
-                        color_continuous_scale='blues')
-            fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True)
+        # Convert to DataFrame for easier handling
+        input_df = pd.DataFrame([input_dict])
         
-        # Display the data table
-        st.subheader("📊 Hub Summary Table")
-        st.dataframe(hub_df.style.format({'Average Salary': '${:,.0f}'}), use_container_width=True)
+        # Handle categorical encoding
+        categorical_cols = [col for col in input_df.columns if input_df[col].dtype == 'object']
+        
+        for col in categorical_cols:
+            # Get unique values from original data
+            unique_values = df[col].unique()
+            
+            # Simple label encoding
+            if input_df[col].iloc[0] in unique_values:
+                value_map = {val: idx for idx, val in enumerate(unique_values)}
+                input_df[col] = value_map[input_df[col].iloc[0]]
+            else:
+                input_df[col] = 0  # Default encoding for unknown values
+        
+        return input_df.iloc[0].values
+        
+    except Exception as e:
+        st.error(f"Error in create_dynamic_prediction_input: {str(e)}")
+        return None
+
+def show_prediction_insights_dynamic(df, predicted_salary, user_inputs):
+    """Show prediction insights using available data"""
+    st.markdown("#### 📊 Prediction Insights")
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        percentile = calculate_salary_percentile(df, predicted_salary)
+        st.metric("Salary Percentile", f"{percentile:.0f}%", 
+                 help="What percentage of salaries are below this prediction")
+    
+    with col2:
+        # Find any experience-related column for comparison
+        exp_cols = [col for col in df.columns if 'exp' in col.lower() or 'level' in col.lower()]
+        if exp_cols and exp_cols[0] in user_inputs:
+            comparison = compare_to_category(df, predicted_salary, exp_cols[0], user_inputs[exp_cols[0]])
+            st.metric("vs Category Avg", comparison, help=f"Comparison to {exp_cols[0]}")
+        else:
+            st.metric("vs Market Avg", "N/A", help="No experience data available")
+    
+    with col3:
+        # Hub comparison if available
+        hub_cols = [col for col in user_inputs.keys() if col.startswith('Hub_') and user_inputs[col] == 1]
+        if hub_cols:
+            hub_name = hub_cols[0].replace('Hub_', '')
+            comparison = compare_to_hub_dynamic(df, predicted_salary, hub_name)
+            st.metric("vs Hub Average", comparison, help=f"Comparison to {hub_name}")
+        else:
+            st.metric("vs Hub Average", "N/A")
+    
+    with col4:
+        confidence_score = 80  # Simplified confidence score
+        st.metric("Confidence Score", f"{confidence_score:.0f}%",
+                 help="Model confidence in this prediction")
 
 def show_skills_insights(df):
     """Display skills-based insights"""
@@ -366,6 +604,16 @@ def show_skills_insights(df):
         st.warning("No skills data available in the dataset.")
         return
     
+    # Determine salary column to use
+    salary_column = None
+    if 'salary_usd' in df.columns:
+        salary_column = 'salary_usd'
+    elif 'log_salary_usd' in df.columns:
+        # Convert log salary back to actual salary
+        df = df.copy()
+        df['salary_usd_calculated'] = np.expm1(df['log_salary_usd'])
+        salary_column = 'salary_usd_calculated'
+    
     # Calculate skill demand and average salaries
     skill_data = []
     
@@ -375,7 +623,11 @@ def show_skills_insights(df):
         
         if len(skill_jobs) > 0:
             demand = len(skill_jobs)
-            avg_salary = skill_jobs['salary_usd'].mean() if 'salary_usd' in df.columns else 0
+            if salary_column:
+                avg_salary = skill_jobs[salary_column].mean()
+            else:
+                avg_salary = 0
+            
             skill_data.append({
                 'Skill': skill_name,
                 'Demand': demand,
@@ -391,11 +643,14 @@ def show_skills_insights(df):
         with col1:
             st.subheader("💰 Highest Paying Skills (Top 15)")
             top_paying = skills_df.head(15)
-            fig = px.bar(top_paying, x='Average Salary', y='Skill', 
-                        orientation='h', title="Highest Paying Skills",
-                        color='Average Salary', color_continuous_scale='viridis')
-            fig.update_layout(height=600, yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig, use_container_width=True)
+            if salary_column:
+                fig = px.bar(top_paying, x='Average Salary', y='Skill', 
+                            orientation='h', title="Highest Paying Skills",
+                            color='Average Salary', color_continuous_scale='viridis')
+                fig.update_layout(height=600, yaxis={'categoryorder':'total ascending'})
+                st.plotly_chart(fig, use_container_width=True, key="skills_highest_paying")
+            else:
+                st.info("Salary data not available for skills analysis")
         
         with col2:
             st.subheader("📈 Most In-Demand Skills (Top 15)")
@@ -404,18 +659,90 @@ def show_skills_insights(df):
                         orientation='h', title="Most In-Demand Skills",
                         color='Demand', color_continuous_scale='blues')
             fig.update_layout(height=600, yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig, use_container_width=True, key="skills_most_demanded")
         
-        # Skills matrix
-        st.subheader("💼 Skills Value Matrix: Demand vs Salary")
-        fig = px.scatter(skills_df, x='Demand %', y='Average Salary', 
-                        hover_name='Skill',
-                        title="Skills: Market Demand vs Average Salary",
-                        size='Demand', 
-                        color='Average Salary',
-                        color_continuous_scale='plasma')
-        fig.update_layout(height=600)
-        st.plotly_chart(fig, use_container_width=True)
+        # Skills matrix (only if we have salary data)
+        if salary_column:
+            st.subheader("💼 Skills Value Matrix: Demand vs Salary")
+            fig = px.scatter(skills_df, x='Demand %', y='Average Salary', 
+                            hover_name='Skill',
+                            title="Skills: Market Demand vs Average Salary",
+                            size='Demand', 
+                            color='Average Salary',
+                            color_continuous_scale='plasma')
+            fig.update_layout(height=600)
+            st.plotly_chart(fig, use_container_width=True, key="skills_value_matrix")
+
+def show_hub_analysis(df):
+    """Display hub-based analysis"""
+    st.markdown('<div class="section-header">🌍 Geographic Hub Analysis</div>', unsafe_allow_html=True)
+    
+    hub_columns = [col for col in df.columns if col.startswith('Hub_')]
+    
+    if not hub_columns:
+        st.warning("No hub data available in the dataset.")
+        return
+    
+    # Determine salary column to use
+    salary_column = None
+    if 'salary_usd' in df.columns:
+        salary_column = 'salary_usd'
+    elif 'log_salary_usd' in df.columns:
+        # Convert log salary back to actual salary
+        df = df.copy()
+        df['salary_usd_calculated'] = np.expm1(df['log_salary_usd'])
+        salary_column = 'salary_usd_calculated'
+    
+    # Hub salary comparison
+    st.subheader("💰 Average Salary by Hub")
+    hub_salaries = []
+    
+    for hub_col in hub_columns:
+        hub_name = hub_col.replace('Hub_', '')
+        hub_data = df[df[hub_col] == 1]
+        if len(hub_data) > 0:
+            job_count = len(hub_data)
+            if salary_column:
+                avg_salary = hub_data[salary_column].mean()
+            else:
+                avg_salary = 0
+            
+            hub_salaries.append({
+                'Hub': hub_name,
+                'Average Salary': avg_salary,
+                'Job Count': job_count
+            })
+    
+    if hub_salaries:
+        hub_df = pd.DataFrame(hub_salaries)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if salary_column:
+                fig = px.bar(hub_df, x='Hub', y='Average Salary', 
+                            title="Average Salary by Geographic Hub",
+                            color='Average Salary', 
+                            color_continuous_scale='viridis')
+                fig.update_layout(height=400)
+                st.plotly_chart(fig, use_container_width=True, key="hub_salary_comparison")
+            else:
+                st.info("Salary data not available")
+        
+        with col2:
+            fig = px.bar(hub_df, x='Hub', y='Job Count', 
+                        title="Number of Jobs by Hub",
+                        color='Job Count', 
+                        color_continuous_scale='blues')
+            fig.update_layout(height=400)
+            st.plotly_chart(fig, use_container_width=True, key="hub_job_count")
+        
+        # Display the data table
+        st.subheader("📊 Hub Summary Table")
+        if salary_column:
+            st.dataframe(hub_df.style.format({'Average Salary': '${:,.0f}'}), use_container_width=True)
+        else:
+            st.dataframe(hub_df, use_container_width=True)
 
 def show_data_explorer(df):
     """Display data exploration interface"""
@@ -432,20 +759,79 @@ def show_data_explorer(df):
         missing_data = df.isnull().sum().sum()
         st.metric("❓ Missing Values", missing_data)
     
-    # Data table
+    # Column analysis
+    st.subheader("📊 Column Analysis")
+    
+    # Categorize columns
+    numeric_cols = df.select_dtypes(include=['int64', 'float64']).columns.tolist()
+    categorical_cols = df.select_dtypes(include=['object']).columns.tolist()
+    hub_cols = [col for col in df.columns if col.startswith('Hub_')]
+    skill_cols = [col for col in df.columns if col.startswith('skill_')]
+    
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        st.metric("🔢 Numeric Columns", len(numeric_cols))
+        if st.checkbox("Show Numeric Columns"):
+            st.write(numeric_cols)
+    
+    with col2:
+        st.metric("📝 Categorical Columns", len(categorical_cols))
+        if st.checkbox("Show Categorical Columns"):
+            st.write(categorical_cols)
+    
+    with col3:
+        st.metric("🌍 Hub Columns", len(hub_cols))
+        if st.checkbox("Show Hub Columns"):
+            st.write(hub_cols)
+    
+    with col4:
+        st.metric("🛠️ Skill Columns", len(skill_cols))
+        if st.checkbox("Show Skill Columns"):
+            st.write(skill_cols[:20] if len(skill_cols) > 20 else skill_cols)
+    
+    # Data sample
     st.subheader("📋 Dataset Sample")
-    st.dataframe(df.head(100), use_container_width=True)
+    sample_size = st.slider("Number of rows to display", 5, min(100, len(df)), 10)
+    st.dataframe(df.head(sample_size), use_container_width=True)
     
     # Column information
-    st.subheader("📊 Column Information")
+    st.subheader("📊 Detailed Column Information")
     col_info = pd.DataFrame({
         'Column': df.columns,
         'Type': df.dtypes,
         'Non-Null Count': df.count(),
         'Null Count': df.isnull().sum(),
-        'Null %': (df.isnull().sum() / len(df) * 100).round(2)
+        'Null %': (df.isnull().sum() / len(df) * 100).round(2),
+        'Unique Values': [df[col].nunique() for col in df.columns]
     })
-    st.dataframe(col_info, use_container_width=True)
+    
+    # Allow filtering of column info
+    column_filter = st.selectbox("Filter columns by type", 
+                                ["All", "Numeric", "Categorical", "Hub", "Skill"])
+    
+    if column_filter == "Numeric":
+        filtered_info = col_info[col_info['Column'].isin(numeric_cols)]
+    elif column_filter == "Categorical":
+        filtered_info = col_info[col_info['Column'].isin(categorical_cols)]
+    elif column_filter == "Hub":
+        filtered_info = col_info[col_info['Column'].isin(hub_cols)]
+    elif column_filter == "Skill":
+        filtered_info = col_info[col_info['Column'].isin(skill_cols)]
+    else:
+        filtered_info = col_info
+    
+    st.dataframe(filtered_info, use_container_width=True)
+    
+    # Quick statistics for numeric columns
+    if numeric_cols:
+        st.subheader("📈 Numeric Column Statistics")
+        selected_numeric = st.multiselect("Select numeric columns to analyze", 
+                                        numeric_cols, 
+                                        default=numeric_cols[:3] if len(numeric_cols) >= 3 else numeric_cols)
+        
+        if selected_numeric:
+            st.dataframe(df[selected_numeric].describe(), use_container_width=True)
 
 # Helper functions
 def get_hub_distribution(df):
