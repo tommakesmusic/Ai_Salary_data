@@ -12,7 +12,7 @@ setup(
         "scikit-learn>=1.3.0",
         "xgboost>=2.0.0",
         "joblib>=1.3.0",
-        "matplotlib>=3.6.0",
+        "matplotlib",
         "seaborn>=0.12.0"
     ],
     python_requires=">=3.8",
