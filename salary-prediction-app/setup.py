@@ -12,7 +12,6 @@ setup(
         "scikit-learn>=1.3.0",
         "xgboost>=2.0.0",
         "joblib>=1.3.0",
-        "plotly>=5.15.0",
         "matplotlib>=3.6.0",
         "seaborn>=0.12.0"
     ],

@@ -1,9 +1,8 @@
 import streamlit as st
 import pandas as pd
 import numpy as np
-import plotly.express as px
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
+import matplotlib.pyplot as plt
+import seaborn as sns
 import sys
 import os
 
@@ -277,47 +276,46 @@ def show_dashboard_overview(df):
                         grouping_col_plot = grouping_col
                     
                     # Create the box plot
-                    fig = px.box(df_plot, x=grouping_col_plot, y=salary_column, 
-                                title=chart_title,
-                                color=grouping_col_plot,
-                                labels={
-                                    salary_column: "Salary (USD)",
-                                    grouping_col_plot: grouping_col_plot.replace('_', ' ').title()
-                                })
-                    fig.update_layout(height=400)
-                    fig.update_xaxes(tickangle=45)
-                    st.plotly_chart(fig, use_container_width=True, key="salary_distribution_box")
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    sns.boxplot(data=df_plot, x=grouping_col_plot, y=salary_column, ax=ax)
+                    plt.xticks(rotation=45)
+                    plt.title(chart_title)
+                    plt.tight_layout()
+                    st.pyplot(fig)
                 else:
                     st.info(f"Too many categories ({unique_values}) in {grouping_col} for box plot visualization")
                     
                     # Show alternative: salary histogram
-                    fig = px.histogram(df, x=salary_column, 
-                                     title="Salary Distribution Histogram",
-                                     nbins=30,
-                                     labels={salary_column: "Salary (USD)"})
-                    fig.update_layout(height=400)
-                    st.plotly_chart(fig, use_container_width=True, key="salary_distribution_hist_alt")
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    plt.hist(df[salary_column].dropna(), bins=30, alpha=0.7, edgecolor='black')
+                    plt.xlabel("Salary (USD)")
+                    plt.ylabel("Frequency")
+                    plt.title("Salary Distribution Histogram")
+                    plt.tight_layout()
+                    st.pyplot(fig)
                     
             except Exception as e:
                 st.error(f"Error creating salary chart: {e}")
                 
                 # Show fallback histogram
                 if salary_column in df.columns:
-                    fig = px.histogram(df, x=salary_column, 
-                                     title="Salary Distribution Histogram",
-                                     nbins=30,
-                                     labels={salary_column: "Salary (USD)"})
-                    fig.update_layout(height=400)
-                    st.plotly_chart(fig, use_container_width=True, key="salary_distribution_fallback")
+                    fig, ax = plt.subplots(figsize=(10, 6))
+                    plt.hist(df[salary_column].dropna(), bins=30, alpha=0.7, edgecolor='black')
+                    plt.xlabel("Salary (USD)")
+                    plt.ylabel("Frequency")
+                    plt.title("Salary Distribution Histogram")
+                    plt.tight_layout()
+                    st.pyplot(fig)
         else:
             # Show salary histogram as fallback
             if salary_column and salary_column in df.columns:
-                fig = px.histogram(df, x=salary_column, 
-                                 title="Overall Salary Distribution",
-                                 nbins=30,
-                                 labels={salary_column: "Salary (USD)"})
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True, key="salary_distribution_default")
+                fig, ax = plt.subplots(figsize=(10, 6))
+                plt.hist(df[salary_column].dropna(), bins=30, alpha=0.7, edgecolor='black')
+                plt.xlabel("Salary (USD)")
+                plt.ylabel("Frequency")
+                plt.title("Overall Salary Distribution")
+                plt.tight_layout()
+                st.pyplot(fig)
             else:
                 st.info("No suitable data for salary visualization")
     
@@ -325,11 +323,10 @@ def show_dashboard_overview(df):
         st.subheader("🌍 Jobs Distribution by Hub")
         hub_data = get_hub_distribution(df)
         if not hub_data.empty:
-            fig = px.pie(hub_data, values='count', names='hub', 
-                        title="Distribution of Jobs by Geographic Hub",
-                        color_discrete_sequence=px.colors.qualitative.Set3)
-            fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True, key="hub_distribution_pie")
+            fig, ax = plt.subplots(figsize=(8, 8))
+            plt.pie(hub_data['count'], labels=hub_data['hub'], autopct='%1.1f%%')
+            plt.title("Distribution of Jobs by Geographic Hub")
+            st.pyplot(fig)
         else:
             # Create hub chart from column data
             hub_columns = [col for col in df.columns if col.startswith('Hub_')]
@@ -345,11 +342,10 @@ def show_dashboard_overview(df):
                     
                     if hub_counts:
                         hub_df = pd.DataFrame(hub_counts)
-                        fig = px.pie(hub_df, values='count', names='hub', 
-                                    title="Distribution of Jobs by Geographic Hub",
-                                    color_discrete_sequence=px.colors.qualitative.Set3)
-                        fig.update_layout(height=400)
-                        st.plotly_chart(fig, use_container_width=True, key="hub_distribution_manual")
+                        fig, ax = plt.subplots(figsize=(8, 8))
+                        plt.pie(hub_df['count'], labels=hub_df['hub'], autopct='%1.1f%%')
+                        plt.title("Distribution of Jobs by Geographic Hub")
+                        st.pyplot(fig)
                     else:
                         st.info("No hub data available")
                 else:
@@ -642,34 +638,34 @@ def show_skills_insights(df):
             st.subheader("💰 Highest Paying Skills (Top 15)")
             top_paying = skills_df.head(15)
             if salary_column:
-                fig = px.bar(top_paying, x='Average Salary', y='Skill', 
-                            orientation='h', title="Highest Paying Skills",
-                            color='Average Salary', color_continuous_scale='viridis')
-                fig.update_layout(height=600, yaxis={'categoryorder':'total ascending'})
-                st.plotly_chart(fig, use_container_width=True, key="skills_highest_paying")
+                fig, ax = plt.subplots(figsize=(10, 6))
+                sns.barplot(data=top_paying, x='Average Salary', y='Skill', ax=ax)
+                plt.xticks(rotation=45)
+                plt.title("Highest Paying Skills")
+                plt.tight_layout()
+                st.pyplot(fig)
             else:
                 st.info("Salary data not available for skills analysis")
         
         with col2:
             st.subheader("📈 Most In-Demand Skills (Top 15)")
             most_demanded = skills_df.nlargest(15, 'Demand')
-            fig = px.bar(most_demanded, x='Demand', y='Skill', 
-                        orientation='h', title="Most In-Demand Skills",
-                        color='Demand', color_continuous_scale='blues')
-            fig.update_layout(height=600, yaxis={'categoryorder':'total ascending'})
-            st.plotly_chart(fig, use_container_width=True, key="skills_most_demanded")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.barplot(data=most_demanded, x='Demand', y='Skill', ax=ax)
+            plt.xticks(rotation=45)
+            plt.title("Most In-Demand Skills")
+            plt.tight_layout()
+            st.pyplot(fig)
         
         # Skills matrix (only if we have salary data)
         if salary_column:
             st.subheader("💼 Skills Value Matrix: Demand vs Salary")
-            fig = px.scatter(skills_df, x='Demand %', y='Average Salary', 
-                            hover_name='Skill',
-                            title="Skills: Market Demand vs Average Salary",
-                            size='Demand', 
-                            color='Average Salary',
-                            color_continuous_scale='plasma')
-            fig.update_layout(height=600)
-            st.plotly_chart(fig, use_container_width=True, key="skills_value_matrix")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            plt.scatter(skills_df['Demand %'], skills_df['Average Salary'], alpha=0.6)
+            plt.xlabel('Demand %')
+            plt.ylabel('Average Salary')
+            plt.title('Skills: Market Demand vs Average Salary')
+            st.pyplot(fig)
 
 def show_hub_analysis(df):
     """Display hub-based analysis"""
@@ -718,22 +714,22 @@ def show_hub_analysis(df):
         
         with col1:
             if salary_column:
-                fig = px.bar(hub_df, x='Hub', y='Average Salary', 
-                            title="Average Salary by Geographic Hub",
-                            color='Average Salary', 
-                            color_continuous_scale='viridis')
-                fig.update_layout(height=400)
-                st.plotly_chart(fig, use_container_width=True, key="hub_salary_comparison")
+                fig, ax = plt.subplots(figsize=(10, 6))
+                sns.barplot(data=hub_df, x='Hub', y='Average Salary', ax=ax)
+                plt.xticks(rotation=45)
+                plt.title("Average Salary by Geographic Hub")
+                plt.tight_layout()
+                st.pyplot(fig)
             else:
                 st.info("Salary data not available")
         
         with col2:
-            fig = px.bar(hub_df, x='Hub', y='Job Count', 
-                        title="Number of Jobs by Hub",
-                        color='Job Count', 
-                        color_continuous_scale='blues')
-            fig.update_layout(height=400)
-            st.plotly_chart(fig, use_container_width=True, key="hub_job_count")
+            fig, ax = plt.subplots(figsize=(10, 6))
+            sns.barplot(data=hub_df, x='Hub', y='Job Count', ax=ax)
+            plt.xticks(rotation=45)
+            plt.title("Number of Jobs by Hub")
+            plt.tight_layout()
+            st.pyplot(fig)
         
         # Display the data table
         st.subheader("📊 Hub Summary Table")
@@ -797,7 +793,7 @@ def show_data_explorer(df):
     st.subheader("📊 Detailed Column Information")
     col_info = pd.DataFrame({
         'Column': df.columns,
-        'Type': df.dtypes,
+        'Type': df.dtypes.astype(str),
         'Non-Null Count': df.count(),
         'Null Count': df.isnull().sum(),
         'Null %': (df.isnull().sum() / len(df) * 100).round(2),
