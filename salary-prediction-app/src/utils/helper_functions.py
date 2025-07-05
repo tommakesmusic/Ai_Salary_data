@@ -16,13 +16,10 @@ def predict_salary(model, feature_values, feature_names):
         log_prediction: Log-transformed prediction
     """
     try:
-        # Create DataFrame with features in correct order
         input_df = pd.DataFrame([feature_values], columns=feature_names)
         
-        # Make prediction (returns log-transformed value)
         log_prediction = model.predict(input_df)[0]
         
-        # Convert back to actual salary scale
         predicted_salary = np.expm1(log_prediction)
         
         return predicted_salary, log_prediction
@@ -122,13 +119,12 @@ def format_salary(salary):
 def calculate_salary_percentile(df, predicted_salary):
     """Calculate what percentile the predicted salary falls into"""
     try:
-        # Check for different salary column names
+
         salary_column = None
         if 'salary_usd' in df.columns:
             salary_column = 'salary_usd'
             return (df[salary_column] <= predicted_salary).mean() * 100
         elif 'log_salary_usd' in df.columns:
-            # Convert log salary to actual salary for comparison
             actual_salaries = np.expm1(df['log_salary_usd'])
             return (actual_salaries <= predicted_salary).mean() * 100
         elif 'salary_usd_calculated' in df.columns:
@@ -142,7 +138,6 @@ def calculate_salary_percentile(df, predicted_salary):
 def compare_to_market(df, predicted_salary, category_col, category_value):
     """Compare predicted salary to category average"""
     try:
-        # Check for salary column variations
         if 'salary_usd' in df.columns:
             market_data = df[df[category_col] == category_value]['salary_usd']
             if len(market_data) > 0:
@@ -175,7 +170,6 @@ def compare_to_hub(df, predicted_salary, selected_hub):
         if hub_col not in df.columns:
             return "N/A"
         
-        # Check for salary column variations
         if 'salary_usd' in df.columns:
             hub_data = df[df[hub_col] == 1]['salary_usd']
             if len(hub_data) > 0:
@@ -200,7 +194,6 @@ def compare_to_hub(df, predicted_salary, selected_hub):
         print(f"Error in compare_to_hub: {e}")
         return "N/A"
 
-    # Helper functions
 def get_hub_distribution(df):
     """Get distribution of jobs by hub"""
     hub_data = []
@@ -217,12 +210,10 @@ def get_hub_distribution(df):
 def compare_to_category(df, predicted_salary, category_col, category_value):
     """Compare predicted salary to category average"""
     try:
-        # Determine salary column
         salary_column = None
         if 'salary_usd' in df.columns:
             salary_column = 'salary_usd'
         elif 'log_salary_usd' in df.columns:
-            # Filter category data and convert log salary
             category_data = df[df[category_col] == category_value]['log_salary_usd']
             if len(category_data) > 0:
                 category_avg = np.expm1(category_data.mean())
