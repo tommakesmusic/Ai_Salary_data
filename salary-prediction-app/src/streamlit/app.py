@@ -7,8 +7,8 @@ from plotly.subplots import make_subplots
 import sys
 import os
 
-# Add the parent directory to the path to import modules
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from utils.helper_functions import calculate_salary_percentile, compare_to_market as compare_to_category, compare_to_hub as compare_to_hub_dynamic
 
 from data.data_loader import load_salary_model, load_feature_info
 from utils.helper_functions import predict_salary, get_business_insights, format_salary
@@ -21,7 +21,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
+# CSS
 st.markdown("""
 <style>
     .main-header {
@@ -61,7 +61,6 @@ st.markdown("""
 def load_data():
     """Load and cache the dataset"""
     try:
-        # Now use the correct path relative to project root
         data_path = os.path.join(os.path.dirname(__file__), '..', '..', 'data', 'ai_job_dataset_cleaned.csv')
         df = pd.read_csv(data_path)
         st.success(f"✅ Dataset loaded successfully: {len(df)} records")
@@ -75,7 +74,6 @@ def load_data():
 def load_model():
     """Load and cache the trained model"""
     try:
-        # Use the correct path to models directory
         models_dir = os.path.join(os.path.dirname(__file__), '..', '..', 'models')
         
         if os.path.exists(models_dir):

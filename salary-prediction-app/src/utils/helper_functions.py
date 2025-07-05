@@ -1,3 +1,4 @@
+import streamlit as st
 import numpy as np
 import pandas as pd
 
@@ -138,34 +139,24 @@ def calculate_salary_percentile(df, predicted_salary):
         print(f"Error in calculate_salary_percentile: {e}")
         return 50
 
-def compare_to_market(df, predicted_salary, experience_level):
-    """Compare predicted salary to market average for experience level"""
+def compare_to_market(df, predicted_salary, category_col, category_value):
+    """Compare predicted salary to category average"""
     try:
-        # Check for experience level column variations
-        exp_col = None
-        if 'experience_level' in df.columns:
-            exp_col = 'experience_level'
-        elif 'Experience_Level' in df.columns:
-            exp_col = 'Experience_Level'
-        
-        if exp_col is None:
-            return "N/A"
-        
         # Check for salary column variations
         if 'salary_usd' in df.columns:
-            market_data = df[df[exp_col] == experience_level]['salary_usd']
+            market_data = df[df[category_col] == category_value]['salary_usd']
             if len(market_data) > 0:
                 market_avg = market_data.mean()
                 diff = predicted_salary - market_avg
                 return f"${diff:+,.0f}"
         elif 'log_salary_usd' in df.columns:
-            market_data = df[df[exp_col] == experience_level]['log_salary_usd']
+            market_data = df[df[category_col] == category_value]['log_salary_usd']
             if len(market_data) > 0:
                 market_avg = np.expm1(market_data.mean())
                 diff = predicted_salary - market_avg
                 return f"${diff:+,.0f}"
         elif 'salary_usd_calculated' in df.columns:
-            market_data = df[df[exp_col] == experience_level]['salary_usd_calculated']
+            market_data = df[df[category_col] == category_value]['salary_usd_calculated']
             if len(market_data) > 0:
                 market_avg = market_data.mean()
                 diff = predicted_salary - market_avg
@@ -173,7 +164,7 @@ def compare_to_market(df, predicted_salary, experience_level):
         
         return "N/A"
     except Exception as e:
-        print(f"Error in compare_to_market: {e}")
+        st.warning(f"Error in compare_to_market: {e}")
         return "N/A"
 
 def compare_to_hub(df, predicted_salary, selected_hub):
@@ -207,4 +198,76 @@ def compare_to_hub(df, predicted_salary, selected_hub):
         return "N/A"
     except Exception as e:
         print(f"Error in compare_to_hub: {e}")
+        return "N/A"
+
+    # Helper functions
+def get_hub_distribution(df):
+    """Get distribution of jobs by hub"""
+    hub_data = []
+    hub_columns = [col for col in df.columns if col.startswith('Hub_')]
+    
+    for hub_col in hub_columns:
+        hub_name = hub_col.replace('Hub_', '')
+        count = df[hub_col].sum()
+        if count > 0:
+            hub_data.append({'hub': hub_name, 'count': count})
+    
+    return pd.DataFrame(hub_data)
+
+def compare_to_category(df, predicted_salary, category_col, category_value):
+    """Compare predicted salary to category average"""
+    try:
+        # Determine salary column
+        salary_column = None
+        if 'salary_usd' in df.columns:
+            salary_column = 'salary_usd'
+        elif 'log_salary_usd' in df.columns:
+            # Filter category data and convert log salary
+            category_data = df[df[category_col] == category_value]['log_salary_usd']
+            if len(category_data) > 0:
+                category_avg = np.expm1(category_data.mean())
+                diff = predicted_salary - category_avg
+                return f"${diff:+,.0f}"
+            return "N/A"
+        elif 'salary_usd_calculated' in df.columns:
+            salary_column = 'salary_usd_calculated'
+        
+        if salary_column and category_col in df.columns:
+            category_data = df[df[category_col] == category_value][salary_column]
+            if len(category_data) > 0:
+                category_avg = category_data.mean()
+                diff = predicted_salary - category_avg
+                return f"${diff:+,.0f}"
+        return "N/A"
+    except Exception as e:
+        st.warning(f"Error comparing to category: {e}")
+        return "N/A"
+
+def compare_to_hub_dynamic(df, predicted_salary, hub_name):
+    """Compare predicted salary to hub average using dynamic approach"""
+    try:
+        hub_col = f'Hub_{hub_name}'
+        
+        if hub_col in df.columns:
+            if 'salary_usd' in df.columns:
+                hub_data = df[df[hub_col] == 1]['salary_usd']
+                if len(hub_data) > 0:
+                    hub_avg = hub_data.mean()
+                    diff = predicted_salary - hub_avg
+                    return f"${diff:+,.0f}"
+            elif 'log_salary_usd' in df.columns:
+                hub_data = df[df[hub_col] == 1]['log_salary_usd']
+                if len(hub_data) > 0:
+                    hub_avg = np.expm1(hub_data.mean())
+                    diff = predicted_salary - hub_avg
+                    return f"${diff:+,.0f}"
+            elif 'salary_usd_calculated' in df.columns:
+                hub_data = df[df[hub_col] == 1]['salary_usd_calculated']
+                if len(hub_data) > 0:
+                    hub_avg = hub_data.mean()
+                    diff = predicted_salary - hub_avg
+                    return f"${diff:+,.0f}"
+        return "N/A"
+    except Exception as e:
+        st.warning(f"Error comparing to hub: {e}")
         return "N/A"
