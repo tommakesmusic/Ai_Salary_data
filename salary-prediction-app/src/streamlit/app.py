@@ -195,6 +195,7 @@ def show_dashboard_overview(df):
         st.metric("📊 Total Jobs", f"{total_jobs:,}")
     
     with col3:
+        # count my 'job_'s
         job_prefix_cols = [col for col in df.columns if col.startswith('job_')]
         if job_prefix_cols:
             active_jobs = len([col for col in job_prefix_cols if df[col].sum() > 0])
