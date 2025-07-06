@@ -195,26 +195,15 @@ def show_dashboard_overview(df):
         st.metric("📊 Total Jobs", f"{total_jobs:,}")
     
     with col3:
-        if 'job_title' in df.columns:
-            unique_roles = df['job_title'].nunique()
-            st.metric("💼 Unique Roles", unique_roles)
+        # count my 'job_'s
+        job_prefix_cols = [col for col in df.columns if col.startswith('job_')]
+        if job_prefix_cols:
+            active_jobs = len([col for col in job_prefix_cols if df[col].sum() > 0])
+            st.metric("💼 Unique Roles", active_jobs)
+            st.caption("Based on job categories")
         else:
-            job_columns = [col for col in df.columns if 'job' in col.lower()]
-            
-            if job_columns:
-                job_col = job_columns[0]
-                unique_roles = df[job_col].nunique()
-                st.metric("💼 Unique Roles", unique_roles)
-                st.caption(f"Based on: {job_col}")
-            else:
-                job_prefix_cols = [col for col in df.columns if col.startswith('job_')]
-                if job_prefix_cols:
-                    active_jobs = len([col for col in job_prefix_cols if df[col].sum() > 0])
-                    st.metric("💼 Unique Roles", active_jobs)
-                    st.caption("Based on job categories")
-                else:
-                    st.metric("💼 Unique Roles", "N/A")
-                    st.caption("No job data found")
+            st.metric("💼 Unique Roles", "N/A")
+            st.caption("No job data found")
     
     with col4:
         hub_columns = [col for col in df.columns if col.startswith('Hub_')]
